@@ -116,9 +116,11 @@ TW_INCLUDE_RESETPROP := true
 TW_INCLUDE_LIBRESETPROP := true
 TW_INCLUDE_CRYPTO := true
 TW_INCLUDE_CRYPTO_FBE := true
+TW_BRIGHTNESS_PATH := "/sys/class/backlight/panel0-backlight/brightness"
+TW_MAX_BRIGHTNESS := 2047
+TW_DEFAULT_BRIGHTNESS := 1200
 
 # OrangeFox Configuration
-FOX_MAINTAINER_PATCH_VERSION := "1"
 FOX_BUILD_TYPE := "Unofficial"
 OF_MAINTAINER := "pixys"
 OF_SCREEN_H := 2400
