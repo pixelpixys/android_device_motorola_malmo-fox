@@ -118,7 +118,7 @@ TW_INCLUDE_CRYPTO := true
 TW_INCLUDE_CRYPTO_FBE := true
 
 # OrangeFox Configuration
-FOX_VERSION := "R11.1"
+FOX_MAINTAINER_PATCH_VERSION := "1"
 FOX_BUILD_TYPE := "Unofficial"
 OF_MAINTAINER := "pixys"
 OF_SCREEN_H := 2400
