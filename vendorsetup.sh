@@ -1,10 +1,9 @@
-#
-# Copyright (C) 2026 The Android Open Source Project
-# Copyright (C) 2026 SebaUbuntu's TWRP device tree generator
-#
-# SPDX-License-Identifier: Apache-2.0
-#
-
-add_lunch_combo omni_malmo-user
-add_lunch_combo omni_malmo-userdebug
-add_lunch_combo omni_malmo-eng
+# OrangeFox build environment flags for Moto G85 (malmo)
+export FOX_BUILD_BOOT=1
+export FOX_BUILD_TYPE="Beta"
+export FOX_VERSION="R11.1"
+export OF_MAINTAINER="pixys"
+export FOX_VIRTUAL_AB_DEVICE=1
+export ALLOW_MISSING_DEPENDENCIES=true
+export OF_USE_HEX_FORMAT=1
+export FOX_USE_TWRP_RECOVERY_IMAGE_BUILDER=1

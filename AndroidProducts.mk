@@ -7,10 +7,13 @@
 
 PRODUCT_MAKEFILES := \
     $(LOCAL_DIR)/fox_malmo.mk \
+    $(LOCAL_DIR)/twrp_malmo.mk \
     $(LOCAL_DIR)/omni_malmo.mk
 
 COMMON_LUNCH_CHOICES := \
     fox_malmo-eng \
     fox_malmo-userdebug \
+    twrp_malmo-eng \
+    twrp_malmo-userdebug \
     omni_malmo-eng \
     omni_malmo-userdebug

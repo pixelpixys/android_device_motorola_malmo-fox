@@ -9,8 +9,9 @@
 $(call inherit-product, $(SRC_TARGET_DIR)/product/core_64_bit.mk)
 $(call inherit-product, $(SRC_TARGET_DIR)/product/full_base_telephony.mk)
 
-# Inherit some common Omni/Fox stuff.
-$(call inherit-product, vendor/omni/config/common.mk)
+# Inherit some common Omni/TWRP stuff.
+$(call inherit-product-if-exists, vendor/twrp/config/common.mk)
+$(call inherit-product-if-exists, vendor/omni/config/common.mk)
 
 # Inherit from malmo device
 $(call inherit-product, device/motorola/malmo/device.mk)
