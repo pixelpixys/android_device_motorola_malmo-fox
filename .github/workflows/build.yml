@@ -17,8 +17,8 @@ jobs:
         sudo apt update
         sudo apt install -y git-core gnupg flex bison build-essential zip curl zlib1g-dev \
           libc6-dev-i386 libncurses5 lib32ncurses5-dev x11proto-core-dev libx11-dev \
-          lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip python3 git-lfs
-        git lfs install
+          lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip python3 python-is-python3
+        sudo ln -sf /usr/bin/python3 /usr/bin/python
 
     - name: Install Repo Tool
       run: |
@@ -48,9 +48,11 @@ jobs:
     - name: Build OrangeFox Recovery
       run: |
         cd ~/fox
+        set +e
         source build/envsetup.sh
-        lunch fox_malmo-eng || lunch fox_malmo-userdebug
-        mka bootimage recoveryimage -j$(nproc --all)
+        set -e
+        lunch twrp_malmo-eng || lunch fox_malmo-eng || lunch omni_malmo-eng
+        mka bootimage recoveryimage -j$(nproc --all) || mka bootimage -j$(nproc --all)
 
     - name: Upload Recovery Images
       uses: actions/upload-artifact@v4
