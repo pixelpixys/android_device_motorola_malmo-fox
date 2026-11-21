@@ -51,7 +51,7 @@ jobs:
         set +e
         source build/envsetup.sh
         set -e
-        lunch twrp_malmo-eng || lunch fox_malmo-eng || lunch omni_malmo-eng
+        lunch twrp_malmo-trunk_staging-eng || lunch fox_malmo-trunk_staging-eng || lunch omni_malmo-trunk_staging-eng
         mka recoveryimage -j$(nproc --all)
 
     - name: Upload Recovery Images
