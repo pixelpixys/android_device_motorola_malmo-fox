@@ -11,6 +11,12 @@ PRODUCT_MAKEFILES := \
     $(LOCAL_DIR)/omni_malmo.mk
 
 COMMON_LUNCH_CHOICES := \
+    fox_malmo-trunk_staging-eng \
+    fox_malmo-trunk_staging-userdebug \
+    twrp_malmo-trunk_staging-eng \
+    twrp_malmo-trunk_staging-userdebug \
+    omni_malmo-trunk_staging-eng \
+    omni_malmo-trunk_staging-userdebug \
     fox_malmo-eng \
     fox_malmo-userdebug \
     twrp_malmo-eng \
