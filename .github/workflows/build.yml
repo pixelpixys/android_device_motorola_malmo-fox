@@ -6,11 +6,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 360
     steps:
-    - name: Free Disk Space
+    - name: Free Disk Space and Configure Swap
       run: |
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
         sudo docker image prune -a -f
+        sudo swapoff -a || true
+        sudo fallocate -l 10G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=10240
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+        free -h
 
     - name: Setup Build Environment
       run: |
@@ -48,10 +55,12 @@ jobs:
     - name: Build OrangeFox Recovery
       run: |
         cd ~/fox
+        export GOMEMLIMIT=6144MiB
+        export _JAVA_OPTIONS="-Xmx4g"
         set +e
         source build/envsetup.sh
         set -e
-        lunch fox_malmo-ap2a-eng || lunch twrp_malmo-ap2a-eng || lunch omni_malmo-ap2a-eng
+        lunch fox_malmo-ap2a-eng || lunch twrp_malmo-ap2a-eng
         mka recoveryimage -j$(nproc --all)
         # Create boot image for fastboot boot (kernel + recovery ramdisk)
         python3 system/tools/mkbootimg/mkbootimg.py \
