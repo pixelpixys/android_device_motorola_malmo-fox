@@ -1,5 +1,4 @@
 # OrangeFox build environment flags for Moto G85 (malmo)
-export FOX_BUILD_BOOT=1
 export FOX_BUILD_TYPE=Beta
 export OF_MAINTAINER=pixys
 export FOX_VIRTUAL_AB_DEVICE=1
