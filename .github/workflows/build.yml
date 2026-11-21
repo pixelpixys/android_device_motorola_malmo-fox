@@ -51,8 +51,16 @@ jobs:
         set +e
         source build/envsetup.sh
         set -e
-        lunch twrp_malmo-trunk_staging-eng || lunch fox_malmo-trunk_staging-eng || lunch omni_malmo-trunk_staging-eng
+        lunch fox_malmo-ap2a-eng || lunch twrp_malmo-ap2a-eng || lunch omni_malmo-ap2a-eng
         mka recoveryimage -j$(nproc --all)
+        # Create boot image for fastboot boot (kernel + recovery ramdisk)
+        python3 system/tools/mkbootimg/mkbootimg.py \
+          --header_version 4 \
+          --kernel device/motorola/malmo/prebuilt/kernel \
+          --ramdisk out/target/product/malmo/ramdisk-recovery.img \
+          --os_version 14.0.0 \
+          --os_patch_level 2099-12 \
+          -o out/target/product/malmo/boot-fastboot.img || true
 
     - name: Upload Recovery Images
       uses: actions/upload-artifact@v4
@@ -60,5 +68,5 @@ jobs:
         name: OrangeFox-MotoG85-Images
         path: |
           ~/fox/out/target/product/malmo/recovery.img
-          ~/fox/out/target/product/malmo/boot.img
+          ~/fox/out/target/product/malmo/boot-fastboot.img
           ~/fox/out/target/product/malmo/OrangeFox*.zip
