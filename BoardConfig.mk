@@ -102,8 +102,6 @@ BOARD_AVB_MAKE_VBMETA_IMAGE_ARGS += --flags 3
 # Hack: prevent anti rollback
 PLATFORM_SECURITY_PATCH := 2099-12-31
 VENDOR_SECURITY_PATCH := 2099-12-31
-PLATFORM_VERSION := 14.0.0
-PLATFORM_SDK_VERSION := 34
 
 # TWRP / OrangeFox Configuration
 TW_THEME := portrait_hdpi
