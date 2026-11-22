@@ -16,8 +16,7 @@ AB_OTA_POSTINSTALL_CONFIG += \
 
 # Recovery root files
 PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/recovery/root/init.recovery.qcom.rc:$(TARGET_COPY_OUT_RECOVERY)/root/init.recovery.qcom.rc \
-    $(LOCAL_PATH)/recovery/root/system/bin/charger:$(TARGET_COPY_OUT_RECOVERY)/root/system/bin/charger
+    $(LOCAL_PATH)/recovery/root/init.recovery.qcom.rc:$(TARGET_COPY_OUT_RECOVERY)/root/init.recovery.qcom.rc
 
 # Boot control HAL
 PRODUCT_PACKAGES += \
