@@ -62,22 +62,27 @@ jobs:
         set -e
         lunch fox_malmo-ap2a-eng || lunch twrp_malmo-ap2a-eng
         mka recoveryimage -j$(nproc --all)
-        # Ensure ramdisk is compressed with LZ4 legacy for Motorola bootloader
+        # Ensure ramdisk is compressed with LZ4 legacy and fits under Motorola ABL limit (< 20MB)
         cd out/target/product/malmo
-        if [ -f ramdisk-recovery.img ]; then
-          if file ramdisk-recovery.img | grep -q "gzip"; then
-            echo "Converting ramdisk from gzip to lz4 legacy..."
-            gzip -dc ramdisk-recovery.img | lz4 -l -12 --favor-decSpeed > ramdisk-recovery-lz4.img
-            python3 ~/fox/system/tools/mkbootimg/mkbootimg.py \
-              --header_version 4 \
-              --ramdisk ramdisk-recovery-lz4.img \
-              --dtb ~/fox/device/motorola/malmo/prebuilt/dtb.img \
-              --os_version 14.0.0 \
-              --os_patch_level 2099-12 \
-              -o recovery.img
-            cp ramdisk-recovery-lz4.img ramdisk-recovery.img
-          fi
+        mkdir -p /tmp/repack_rd && cd /tmp/repack_rd
+        if file ../ramdisk-recovery.img | grep -q "gzip"; then
+          gzip -dc ../ramdisk-recovery.img | cpio -idm 2>/dev/null
+        else
+          lz4 -dc ../ramdisk-recovery.img | cpio -idm 2>/dev/null
         fi
+        rm -rf system/etc/terminfo
+        find twres/languages -type f ! -name "en.xml" ! -name "ru.xml" -delete 2>/dev/null || true
+        find . | cpio -o -H newc 2>/dev/null | lz4 -l -12 --favor-decSpeed > ../ramdisk-recovery-lz4.img
+        cd ~/fox/out/target/product/malmo
+        python3 ~/fox/system/tools/mkbootimg/mkbootimg.py \
+          --header_version 4 \
+          --ramdisk ramdisk-recovery-lz4.img \
+          --dtb ~/fox/device/motorola/malmo/prebuilt/dtb.img \
+          --os_version 14.0.0 \
+          --os_patch_level 2099-12 \
+          -o recovery.img
+        cp ramdisk-recovery-lz4.img ramdisk-recovery.img
+        rm -rf /tmp/repack_rd
         cd ~/fox
         # Create boot image for fastboot boot (kernel + recovery ramdisk)
         python3 system/tools/mkbootimg/mkbootimg.py \

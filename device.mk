@@ -18,11 +18,11 @@ AB_OTA_POSTINSTALL_CONFIG += \
 PRODUCT_COPY_FILES += \
     $(LOCAL_PATH)/recovery/root/init.recovery.qcom.rc:$(TARGET_COPY_OUT_RECOVERY)/root/init.recovery.qcom.rc \
     $(LOCAL_PATH)/recovery/root/system/bin/cargar_modulos.sh:$(TARGET_COPY_OUT_RECOVERY)/root/system/bin/cargar_modulos.sh \
+    $(LOCAL_PATH)/recovery/root/system/lib64/libsysutils.so:$(TARGET_COPY_OUT_RECOVERY)/root/system/lib64/libsysutils.so \
     $(call find-copy-subdir-files,*,$(LOCAL_PATH)/recovery/root/vendor/lib/modules-recovery,$(TARGET_COPY_OUT_RECOVERY)/root/vendor/lib/modules-recovery)
 
 # Boot control HAL & Recovery Libraries
 PRODUCT_PACKAGES += \
     android.hardware.boot@1.0-impl \
     android.hardware.boot@1.0-service \
-    bootctrl.blair \
-    libsysutils
+    bootctrl.blair
