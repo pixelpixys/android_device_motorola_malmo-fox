@@ -253,9 +253,6 @@ ro.orangefox.release.version=R12.0-Beta
 ro.orangefox.version=R12.0
 ro.orangefox.type=Unofficial
 
-# Display density for Motorola Moto G85 5G (FHD+ 1080x2400)
-ro.sf.lcd_density=400
-vendor.display.enable_spr=1
 
 # Instant ADB Configuration
 ro.adb.secure=0
