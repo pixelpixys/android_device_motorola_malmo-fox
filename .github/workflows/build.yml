@@ -24,7 +24,7 @@ jobs:
         sudo apt update
         sudo apt install -y git-core gnupg flex bison build-essential zip curl zlib1g-dev \
           libc6-dev-i386 libncurses5 lib32ncurses5-dev x11proto-core-dev libx11-dev \
-          lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip python3 python-is-python3 lz4
+          lib32z1-dev libgl1-mesa-dev libxml2-utils xsltproc unzip python3 python-is-python3 lz4 erofs-utils xz-utils
         sudo ln -sf /usr/bin/python3 /usr/bin/python
 
     - name: Install Repo Tool
@@ -62,9 +62,15 @@ jobs:
         set -e
         lunch fox_malmo-ap2a-eng || lunch twrp_malmo-ap2a-eng
         mka recoveryimage -j$(nproc --all)
-        # Ensure ramdisk is compressed with LZ4 legacy and fits under Motorola ABL limit (< 20MB)
+
         cd ~/fox/out/target/product/malmo
         PRODUCT_DIR="$PWD"
+        DT_DIR=~/fox/device/motorola/malmo
+
+        # Decompress prebuilt EROFS payload (contains QCOM KeyMint, Keystore2, QSEEComd & modem firmware)
+        xz -dc "$DT_DIR/prebuilt/recovery_extra.erofs.xz" > "$PRODUCT_DIR/recovery_extra.erofs"
+
+        # Repack ramdisk: apply battery patch, trim extra languages and pack with LZ4 legacy
         mkdir -p /tmp/repack_rd && cd /tmp/repack_rd
         if [ -f "$PRODUCT_DIR/ramdisk-recovery.img" ]; then
           if file "$PRODUCT_DIR/ramdisk-recovery.img" | grep -q "gzip"; then
@@ -72,20 +78,46 @@ jobs:
           else
             lz4 -dc "$PRODUCT_DIR/ramdisk-recovery.img" | cpio -idm 2>/dev/null
           fi
+
+          # Apply native battery assembly hook if recovery binary is present
+          if [ -f "system/bin/recovery" ] && [ -f "$DT_DIR/scripts/patch_battery.py" ]; then
+            python3 "$DT_DIR/scripts/patch_battery.py" system/bin/recovery || true
+          fi
+
           rm -rf system/etc/terminfo
           find twres/languages -type f ! -name "en.xml" ! -name "ru.xml" -delete 2>/dev/null || true
           find . | cpio -o -H newc 2>/dev/null | lz4 -l -12 --favor-decSpeed > "$PRODUCT_DIR/ramdisk-recovery-lz4.img"
           cd "$PRODUCT_DIR"
+
+          # 1. Build initial lean boot recovery image (ramdisk < 19.6 MB for Motorola ABL)
           python3 ~/fox/system/tools/mkbootimg/mkbootimg.py \
             --header_version 4 \
             --ramdisk ramdisk-recovery-lz4.img \
             --os_version 14.0.0 \
             --os_patch_level 2099-12 \
-            -o recovery.img
-          cp recovery.img OrangeFox-R12.0-Beta-malmo.img 2>/dev/null || true
+            -o recovery-boot.img
+
+          # 2. Assemble 128 MB split recovery image (ramdisk at offset 0, EROFS at offset 32 MB)
+          python3 "$DT_DIR/scripts/split_recovery.py" recovery-boot.img recovery_extra.erofs recovery.img
+          cp recovery.img OrangeFox-R12.0-Beta-Malmo.img 2>/dev/null || true
           cp ramdisk-recovery-lz4.img ramdisk-recovery.img
         fi
         rm -rf /tmp/repack_rd
+
+        # 3. If OrangeFox zip was produced, update it with our 128 MB recovery.img
+        for z in OrangeFox*.zip; do
+          if [ -f "$z" ]; then
+            mkdir -p /tmp/zip_upd && cd /tmp/zip_upd
+            unzip -q "$PRODUCT_DIR/$z"
+            cp "$PRODUCT_DIR/recovery.img" recovery.img
+            rm -f META-INF/CERT.RSA META-INF/CERT.SF META-INF/MANIFEST.MF
+            zip -r9 "$PRODUCT_DIR/$z" *
+            cd "$PRODUCT_DIR"
+            rm -rf /tmp/zip_upd
+            cp "$z" OrangeFox-R12.0-Beta-Malmo.zip 2>/dev/null || true
+          fi
+        done
+
         cd ~/fox
         # Create boot image for fastboot boot (kernel + recovery ramdisk)
         python3 system/tools/mkbootimg/mkbootimg.py \
