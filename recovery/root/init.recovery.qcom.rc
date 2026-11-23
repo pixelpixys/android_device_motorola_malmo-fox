@@ -28,20 +28,6 @@ service vendor.cargarmods /system/bin/sh /system/bin/cargar_modulos.sh
     disabled
     seclabel u:r:recovery:s0
 
-# malmo (blair): the dwc3-msm glue is 4e00000.ssusb (not a600000.ssusb). It only shows up once
-# TWRP loads the charger modules (TW_LOAD_VENDOR_MODULES), so peripheral mode and binding the
-# gadget go in a service (usb_tardio.sh). No "wait" here: that blocked init 5 s.
-on property:ro.boot.usbcontroller=*
-    setprop sys.usb.controller ${ro.boot.usbcontroller}
-    start vendor.usbtardio
-
-service vendor.usbtardio /system/bin/sh /system/bin/usb_tardio.sh
-    user root
-    group root
-    oneshot
-    disabled
-    seclabel u:r:recovery:s0
-
 on fs
     wait /dev/block/platform/soc/${ro.boot.bootdevice}
     symlink /dev/block/platform/soc/${ro.boot.bootdevice} /dev/block/bootdevice
@@ -94,6 +80,9 @@ on boot
     write /sys/fs/selinux/enforce 0
 
 # qseecomd start
+on property:hwservicemanager.ready=true
+    start health-hal-2-1
+
 on property:crypto.ready=1
     start hwservicemanager
     start qseecomd
@@ -176,8 +165,19 @@ service gatekeeper-1-0-qti /system/bin/android.hardware.gatekeeper@1.0-service-q
 on property:sys.usb.ffs.ready=1 && property:sys.usb.configfs=1
     write /config/usb_gadget/g1/UDC 4e00000.dwc3
 
+on property:sys.usb.config=adb
+    start adbd
+
 on property:sys.usb.config=mtp,adb
     start adbd
+
+on property:sys.usb.config=adb && property:sys.usb.ffs.ready=1 && property:sys.usb.configfs=1
+    write /config/usb_gadget/g1/idProduct 0x${ro.recovery.usb.adb.pid}
+    write /config/usb_gadget/g1/configs/b.1/strings/0x409/configuration "adb"
+    rm /config/usb_gadget/g1/configs/b.1/f1
+    symlink /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1
+    write /config/usb_gadget/g1/UDC 4e00000.dwc3
+    setprop sys.usb.state ${sys.usb.config}
 
 on property:sys.usb.config=mtp,adb && property:sys.usb.ffs.ready=1 && property:sys.usb.configfs=1
     write /config/usb_gadget/g1/idProduct 0x${ro.recovery.usb.adb.pid}

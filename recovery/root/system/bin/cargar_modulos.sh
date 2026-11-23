@@ -2,14 +2,11 @@
 # Lineage recovery (malmo): loads the vendor_dlkm modules that only Android loads.
 DIR=/vendor/lib/modules-recovery
 
-# Same relative order as /vendor_dlkm/lib/modules/modules.load
+# Load essential kernel modules in order
 for m in sc8541_mmi_iio mmi_annotate mmi_info mmi_charger mmi-smbcharger-iio \
          mmi_parallel_charger_iio sensors_class mmi_relay touchscreen_mmi goodix_brl_mmi; do
     insmod $DIR/$m.ko || echo "cargar_modulos: insmod $m failed" > /dev/kmsg
 done
-
-# Start health HAL daemon now that battery power_supply nodes exist
-start health-hal-2-1
 
 # Trigger haptics warmup for AW86927 vibrator
 setprop twrp.modules.loaded true
@@ -18,54 +15,82 @@ start twrp-haptics-warmup
 # dwc3-msm (glue 4e00000.ssusb on blair) in peripheral mode
 i=0
 while [ ! -e /sys/bus/platform/devices/4e00000.ssusb/mode ] && [ $i -lt 50 ]; do
-    sleep 0.2; i=$((i + 1))
+    sleep 0.1; i=$((i + 1))
 done
 echo peripheral > /sys/bus/platform/devices/4e00000.ssusb/mode
 
-C=$(getprop sys.usb.controller)
-[ -n "$C" ] || C=4e00000.dwc3
+C=4e00000.dwc3
+setprop sys.usb.controller $C
+
+# Wait up to 5s for UDC to appear
 i=0
 while [ ! -e /sys/class/udc/$C ] && [ $i -lt 50 ]; do
-    sleep 0.2; i=$((i + 1))
+    sleep 0.1; i=$((i + 1))
 done
 
-# Always ensure adbd is started
+# If UDC appeared, immediately ensure gadget ffs and bind
+if [ -e /sys/class/udc/$C ]; then
+    [ -e /config/usb_gadget/g1/configs/b.1/f1 ] || \
+        ln -s /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1 2>/dev/null
+    if [ -z "$(cat /config/usb_gadget/g1/UDC 2>/dev/null)" ]; then
+        echo $C > /config/usb_gadget/g1/UDC 2>/dev/null || true
+    fi
+    setprop sys.usb.state adb
+fi
+
+# Always ensure adbd is running
 start adbd
 
-# Background watchdog: continuously ensures ADB function, UDC, and Battery status
-(
-    # Wait for TWRP recovery process to start
-    while [ ! -e /tmp/openrecoveryscript ] && [ -z "$(pidof recovery)" ]; do
-        sleep 1
-    done
-    sleep 2
-
-    while true; do
-        # 1. USB Watchdog
-        CFG=$(getprop sys.usb.config)
-        UDC=$(cat /config/usb_gadget/g1/UDC 2>/dev/null)
-        if [ "$CFG" != "none" ]; then
-            if [ "$(getprop init.svc.adbd)" != "running" ]; then
-                start adbd
-            fi
-            if [ -z "$UDC" ] && [ "$(getprop sys.usb.ffs.ready)" = "1" ]; then
-                [ -e /config/usb_gadget/g1/configs/b.1/f1 ] || \
-                    ln -s /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1 2>/dev/null
-                echo 4e00000.dwc3 > /config/usb_gadget/g1/UDC 2>/dev/null || true
-                setprop sys.usb.state "$CFG"
-            fi
-        fi
-
-        # 2. Battery Watchdog (sync hardware PMIC capacity to TWRP GUI)
-        if [ -e /sys/class/power_supply/battery/capacity ]; then
-            CAP=$(cat /sys/class/power_supply/battery/capacity 2>/dev/null)
-            if [ -n "$CAP" ]; then
-                twrp set tw_battery "$CAP" >/dev/null 2>&1
+# Battery sync function
+update_battery() {
+    if [ -e /sys/class/power_supply/battery/capacity ]; then
+        CAP=$(cat /sys/class/power_supply/battery/capacity 2>/dev/null)
+        STAT=$(cat /sys/class/power_supply/battery/status 2>/dev/null)
+        if [ -n "$CAP" ]; then
+            twrp set tw_battery "$CAP" >/dev/null 2>&1
+            if [ "$STAT" = "Charging" ] || [ "$STAT" = "Full" ]; then
+                twrp set tw_battery_charge "${CAP}%+" >/dev/null 2>&1
+            else
                 twrp set tw_battery_charge "${CAP}%" >/dev/null 2>&1
             fi
         fi
+    fi
+}
 
-        sleep 5
+# Initial immediate sync
+update_battery
+
+# Background watchdog: continuously ensures ADB function, UDC, and Battery status
+(
+    # Initial fast sync loop (checks every 0.5s for 15 iterations)
+    for k in $(seq 1 15); do
+        update_battery
+        UDC=$(cat /config/usb_gadget/g1/UDC 2>/dev/null)
+        if [ -z "$UDC" ]; then
+            [ -e /config/usb_gadget/g1/configs/b.1/f1 ] || \
+                ln -s /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1 2>/dev/null
+            echo $C > /config/usb_gadget/g1/UDC 2>/dev/null || true
+            setprop sys.usb.state adb
+        fi
+        sleep 0.5
+    done
+
+    # Normal watchdog loop (every 3 seconds)
+    while true; do
+        update_battery
+
+        UDC=$(cat /config/usb_gadget/g1/UDC 2>/dev/null)
+        if [ -z "$UDC" ]; then
+            if [ "$(getprop init.svc.adbd)" != "running" ]; then
+                start adbd
+            fi
+            [ -e /config/usb_gadget/g1/configs/b.1/f1 ] || \
+                ln -s /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1 2>/dev/null
+            echo $C > /config/usb_gadget/g1/UDC 2>/dev/null || true
+            setprop sys.usb.state adb
+        fi
+
+        sleep 3
     done
 ) &
 
