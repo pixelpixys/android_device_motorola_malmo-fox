@@ -11,6 +11,10 @@ done
 # Start health HAL daemon now that battery power_supply nodes exist
 start health-hal-2-1
 
+# Trigger haptics warmup for AW86927 vibrator
+setprop twrp.modules.loaded true
+start twrp-haptics-warmup
+
 # dwc3-msm (glue 4e00000.ssusb on blair) in peripheral mode
 i=0
 while [ ! -e /sys/bus/platform/devices/4e00000.ssusb/mode ] && [ $i -lt 50 ]; do
