@@ -28,10 +28,16 @@ done
 # Always ensure adbd is started
 start adbd
 
-# Background watchdog: continuously ensures ADB function and UDC are bound
-# even when OrangeFox GUI toggles MTP / USB configs
+# Background watchdog: continuously ensures ADB function, UDC, and Battery status
 (
+    # Wait for TWRP recovery process to start
+    while [ ! -e /tmp/openrecoveryscript ] && [ -z "$(pidof recovery)" ]; do
+        sleep 1
+    done
+    sleep 2
+
     while true; do
+        # 1. USB Watchdog
         CFG=$(getprop sys.usb.config)
         UDC=$(cat /config/usb_gadget/g1/UDC 2>/dev/null)
         if [ "$CFG" != "none" ]; then
@@ -45,7 +51,17 @@ start adbd
                 setprop sys.usb.state "$CFG"
             fi
         fi
-        sleep 1
+
+        # 2. Battery Watchdog (sync hardware PMIC capacity to TWRP GUI)
+        if [ -e /sys/class/power_supply/battery/capacity ]; then
+            CAP=$(cat /sys/class/power_supply/battery/capacity 2>/dev/null)
+            if [ -n "$CAP" ]; then
+                twrp set tw_battery "$CAP" >/dev/null 2>&1
+                twrp set tw_battery_charge "${CAP}%" >/dev/null 2>&1
+            fi
+        fi
+
+        sleep 5
     done
 ) &
 
