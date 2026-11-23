@@ -1,7 +1,7 @@
 import /init.recovery.services.qcom_decrypt.fbe.rc
 
 on property:ro.crypto.state=encrypted && property:ro.crypto.type=file
-    install_keyring
+    # install_keyring (handled by vold in Android 14 FBEv2)
 
 on property:vendor.sys.listeners.registered=true
 
