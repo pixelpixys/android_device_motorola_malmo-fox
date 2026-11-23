@@ -22,13 +22,13 @@ echo peripheral > /sys/bus/platform/devices/4e00000.ssusb/mode
 C=4e00000.dwc3
 setprop sys.usb.controller $C
 
-# Wait up to 5s for UDC to appear
+# Wait up to 3s for UDC to appear
 i=0
-while [ ! -e /sys/class/udc/$C ] && [ $i -lt 50 ]; do
+while [ ! -e /sys/class/udc/$C ] && [ $i -lt 30 ]; do
     sleep 0.1; i=$((i + 1))
 done
 
-# If UDC appeared, immediately ensure gadget ffs and bind
+# If UDC appeared, immediately ensure gadget ffs and bind for instant ADB
 if [ -e /sys/class/udc/$C ]; then
     [ -e /config/usb_gadget/g1/configs/b.1/f1 ] || \
         ln -s /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1 2>/dev/null
@@ -41,43 +41,28 @@ fi
 # Always ensure adbd is running
 start adbd
 
-# Battery sync function
-update_battery() {
-    if [ -e /sys/class/power_supply/battery/capacity ]; then
-        CAP=$(cat /sys/class/power_supply/battery/capacity 2>/dev/null)
-        STAT=$(cat /sys/class/power_supply/battery/status 2>/dev/null)
-        if [ -n "$CAP" ]; then
-            twrp set tw_battery "$CAP" >/dev/null 2>&1
-            if [ "$STAT" = "Charging" ] || [ "$STAT" = "Full" ]; then
-                twrp set tw_battery_charge "${CAP}%+" >/dev/null 2>&1
-            else
-                twrp set tw_battery_charge "${CAP}%" >/dev/null 2>&1
-            fi
-        fi
-    fi
-}
-
-# Initial immediate sync
-update_battery
-
-# Background watchdog: continuously ensures ADB function, UDC, and Battery status
+# Background watchdog: waits for recovery GUI before setting battery variables via twrp CLI
 (
-    # Initial fast sync loop (checks every 0.5s for 15 iterations)
-    for k in $(seq 1 15); do
-        update_battery
-        UDC=$(cat /config/usb_gadget/g1/UDC 2>/dev/null)
-        if [ -z "$UDC" ]; then
-            [ -e /config/usb_gadget/g1/configs/b.1/f1 ] || \
-                ln -s /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1 2>/dev/null
-            echo $C > /config/usb_gadget/g1/UDC 2>/dev/null || true
-            setprop sys.usb.state adb
-        fi
+    # Wait until recovery process exists and is running its UI loop
+    while [ -z "$(pidof recovery)" ]; do
         sleep 0.5
     done
+    sleep 2
 
     # Normal watchdog loop (every 3 seconds)
     while true; do
-        update_battery
+        if [ -e /sys/class/power_supply/battery/capacity ]; then
+            CAP=$(cat /sys/class/power_supply/battery/capacity 2>/dev/null)
+            STAT=$(cat /sys/class/power_supply/battery/status 2>/dev/null)
+            if [ -n "$CAP" ]; then
+                twrp set tw_battery "$CAP" >/dev/null 2>&1
+                if [ "$STAT" = "Charging" ] || [ "$STAT" = "Full" ]; then
+                    twrp set tw_battery_charge "${CAP}%+" >/dev/null 2>&1
+                else
+                    twrp set tw_battery_charge "${CAP}%" >/dev/null 2>&1
+                fi
+            fi
+        fi
 
         UDC=$(cat /config/usb_gadget/g1/UDC 2>/dev/null)
         if [ -z "$UDC" ]; then
