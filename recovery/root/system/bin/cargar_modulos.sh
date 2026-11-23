@@ -18,7 +18,6 @@ while [ ! -e /sys/bus/platform/devices/4e00000.ssusb/mode ] && [ $i -lt 50 ]; do
 done
 echo peripheral > /sys/bus/platform/devices/4e00000.ssusb/mode
 
-# If init already tried to bind the gadget before the UDC existed, bind it now.
 C=$(getprop sys.usb.controller)
 [ -n "$C" ] || C=4e00000.dwc3
 i=0
@@ -26,19 +25,28 @@ while [ ! -e /sys/class/udc/$C ] && [ $i -lt 50 ]; do
     sleep 0.2; i=$((i + 1))
 done
 
-# Wait for ffs if adbd is starting
-i=0
-while [ "$(getprop sys.usb.ffs.ready)" != "1" ] && [ $i -lt 30 ]; do
-    sleep 0.2; i=$((i + 1))
-done
+# Always ensure adbd is started
+start adbd
 
-if [ -z "$(cat /config/usb_gadget/g1/UDC 2>/dev/null)" ]; then
-    case "$(getprop sys.usb.config)" in
-        *adb*|*sideload*|*fastboot*|*mtp*)
-            echo "$C" > /config/usb_gadget/g1/UDC 2>/dev/null || true
-            setprop sys.usb.state "$(getprop sys.usb.config)"
-            ;;
-    esac
-fi
+# Background watchdog: continuously ensures ADB function and UDC are bound
+# even when OrangeFox GUI toggles MTP / USB configs
+(
+    while true; do
+        CFG=$(getprop sys.usb.config)
+        UDC=$(cat /config/usb_gadget/g1/UDC 2>/dev/null)
+        if [ "$CFG" != "none" ]; then
+            if [ "$(getprop init.svc.adbd)" != "running" ]; then
+                start adbd
+            fi
+            if [ -z "$UDC" ] && [ "$(getprop sys.usb.ffs.ready)" = "1" ]; then
+                [ -e /config/usb_gadget/g1/configs/b.1/f1 ] || \
+                    ln -s /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1 2>/dev/null
+                echo 4e00000.dwc3 > /config/usb_gadget/g1/UDC 2>/dev/null || true
+                setprop sys.usb.state "$CFG"
+            fi
+        fi
+        sleep 1
+    done
+) &
 
 echo "cargar_modulos: done, udc=$(ls /sys/class/udc 2>/dev/null)" > /dev/kmsg
