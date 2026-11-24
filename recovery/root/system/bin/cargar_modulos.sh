@@ -12,9 +12,6 @@ done
 setprop twrp.modules.loaded true
 start twrp-haptics-warmup
 
-# Start health HAL so GUI battery widget gets live battery and charging state
-start health-hal-2-1
-
 # dwc3-msm (glue 4e00000.ssusb on blair) in peripheral mode
 i=0
 while [ ! -e /sys/bus/platform/devices/4e00000.ssusb/mode ] && [ $i -lt 50 ]; do
@@ -31,7 +28,7 @@ while [ ! -e /sys/class/udc/$C ] && [ $i -lt 30 ]; do
     sleep 0.1; i=$((i + 1))
 done
 
-# If UDC appeared, bind gadget for instant ADB
+# If UDC appeared, immediately ensure gadget ffs and bind for instant ADB
 if [ -e /sys/class/udc/$C ]; then
     [ -e /config/usb_gadget/g1/configs/b.1/f1 ] || \
         ln -s /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1 2>/dev/null
@@ -44,19 +41,16 @@ fi
 # Always ensure adbd is running
 start adbd
 
-# Background watchdog: monitors cable reconnect and battery
+# Background watchdog: waits for recovery GUI before setting battery variables via twrp CLI
 (
-    CTRL="4e00000.dwc3"
-    PREV_STATE=""
-
     # Wait until recovery process exists and is running its UI loop
     while [ -z "$(pidof recovery)" ]; do
         sleep 0.5
     done
     sleep 2
 
+    # Normal watchdog loop (every 3 seconds)
     while true; do
-        # 1. Update battery capacity and charging indicator in GUI
         if [ -e /sys/class/power_supply/battery/capacity ]; then
             CAP=$(cat /sys/class/power_supply/battery/capacity 2>/dev/null)
             STAT=$(cat /sys/class/power_supply/battery/status 2>/dev/null)
@@ -70,20 +64,18 @@ start adbd
             fi
         fi
 
-        # 2. Check UDC and controller connection
         UDC=$(cat /config/usb_gadget/g1/UDC 2>/dev/null)
-        if [ -z "$UDC" ] || [ "$UDC" = "none" ]; then
+        if [ -z "$UDC" ]; then
             if [ "$(getprop init.svc.adbd)" != "running" ]; then
                 start adbd
             fi
-            setprop sys.usb.ffs.ready 1
             [ -e /config/usb_gadget/g1/configs/b.1/f1 ] || \
                 ln -s /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1 2>/dev/null
-            echo $CTRL > /config/usb_gadget/g1/UDC 2>/dev/null || true
+            echo $C > /config/usb_gadget/g1/UDC 2>/dev/null || true
             setprop sys.usb.state adb
         fi
 
-        sleep 1
+        sleep 3
     done
 ) &
 
