@@ -12,6 +12,9 @@ done
 setprop twrp.modules.loaded true
 start twrp-haptics-warmup
 
+# Start health HAL so GUI battery widget gets live battery and charging state
+start health-hal-2-1
+
 # dwc3-msm (glue 4e00000.ssusb on blair) in peripheral mode
 i=0
 while [ ! -e /sys/bus/platform/devices/4e00000.ssusb/mode ] && [ $i -lt 50 ]; do
@@ -28,7 +31,7 @@ while [ ! -e /sys/class/udc/$C ] && [ $i -lt 30 ]; do
     sleep 0.1; i=$((i + 1))
 done
 
-# If UDC appeared, immediately ensure gadget ffs and bind for instant ADB
+# If UDC appeared, bind gadget for instant ADB
 if [ -e /sys/class/udc/$C ]; then
     [ -e /config/usb_gadget/g1/configs/b.1/f1 ] || \
         ln -s /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1 2>/dev/null
@@ -41,10 +44,10 @@ fi
 # Always ensure adbd is running
 start adbd
 
-# Background watchdog: monitors battery status and auto-rebinds USB gadget upon cable reconnect
+# Background watchdog: monitors cable reconnect and battery
 (
     CTRL="4e00000.dwc3"
-    PREV_ONLINE="-1"
+    PREV_STATE=""
 
     # Wait until recovery process exists and is running its UI loop
     while [ -z "$(pidof recovery)" ]; do
@@ -67,34 +70,19 @@ start adbd
             fi
         fi
 
-        # 2. Check if cable is attached via USB power supply
-        CUR_ONLINE=0
-        if [ -e /sys/class/power_supply/usb/online ]; then
-            CUR_ONLINE=$(cat /sys/class/power_supply/usb/online 2>/dev/null)
-        fi
-
+        # 2. Check UDC and controller connection
         UDC=$(cat /config/usb_gadget/g1/UDC 2>/dev/null)
-
-        # 3. If USB was reconnected (0 -> 1) or UDC became unbound while cable is plugged in
-        if [ "$CUR_ONLINE" = "1" ] && { [ "$PREV_ONLINE" = "0" ] || [ -z "$UDC" ]; }; then
-            # Cycle recovery MTP/USB toggle via twrp CLI to force OrangeFox internal USB reset
-            twrp startmtp >/dev/null 2>&1
-
-            # Ensure adbd is running
+        if [ -z "$UDC" ] || [ "$UDC" = "none" ]; then
             if [ "$(getprop init.svc.adbd)" != "running" ]; then
                 start adbd
             fi
-
-            # Force ConfigFS link and bind UDC
             setprop sys.usb.ffs.ready 1
             [ -e /config/usb_gadget/g1/configs/b.1/f1 ] || \
                 ln -s /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1 2>/dev/null
             echo $CTRL > /config/usb_gadget/g1/UDC 2>/dev/null || true
             setprop sys.usb.state adb
-            setprop sys.usb.config adb
         fi
 
-        PREV_ONLINE="$CUR_ONLINE"
         sleep 1
     done
 ) &

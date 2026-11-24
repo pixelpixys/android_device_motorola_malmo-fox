@@ -81,7 +81,7 @@ on boot
 
 # qseecomd start
 on property:hwservicemanager.ready=true
-    start health-hal-2-1
+    #start health-hal-2-1
 
 on property:crypto.ready=1
     start hwservicemanager
