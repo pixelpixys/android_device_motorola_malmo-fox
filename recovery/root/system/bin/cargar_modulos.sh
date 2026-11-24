@@ -4,7 +4,7 @@ DIR=/vendor/lib/modules-recovery
 
 # Load essential kernel modules in order
 for m in sc8541_mmi_iio mmi_annotate mmi_info mmi_charger mmi-smbcharger-iio \
-         mmi_parallel_charger_iio sensors_class mmi_relay touchscreen_mmi goodix_brl_mmi; do
+         mmi_parallel_charger_iio sensors_class mmi_relay touchscreen_mmi goodix_brl_mmi focaltech_v3_4; do
     insmod $DIR/$m.ko || echo "cargar_modulos: insmod $m failed" > /dev/kmsg
 done
 
