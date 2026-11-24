@@ -43,6 +43,9 @@ start adbd
 
 # Background watchdog: monitors battery status and auto-rebinds USB gadget upon cable reconnect
 (
+    CTRL="4e00000.dwc3"
+    PREV_ONLINE="-1"
+
     # Wait until recovery process exists and is running its UI loop
     while [ -z "$(pidof recovery)" ]; do
         sleep 0.5
@@ -65,26 +68,34 @@ start adbd
         fi
 
         # 2. Check if cable is attached via USB power supply
-        USB_ONLINE=0
+        CUR_ONLINE=0
         if [ -e /sys/class/power_supply/usb/online ]; then
-            USB_ONLINE=$(cat /sys/class/power_supply/usb/online 2>/dev/null)
+            CUR_ONLINE=$(cat /sys/class/power_supply/usb/online 2>/dev/null)
         fi
 
-        # 3. Auto-rebind USB gadget and restart adbd whenever cable is connected but UDC is unbound
         UDC=$(cat /config/usb_gadget/g1/UDC 2>/dev/null)
-        if [ -z "$UDC" ] || [ "$USB_ONLINE" = "1" -a "$UDC" != "$C" ]; then
+
+        # 3. If USB was reconnected (0 -> 1) or UDC became unbound while cable is plugged in
+        if [ "$CUR_ONLINE" = "1" ] && { [ "$PREV_ONLINE" = "0" ] || [ -z "$UDC" ]; }; then
+            # Cycle recovery MTP/USB toggle via twrp CLI to force OrangeFox internal USB reset
+            twrp startmtp >/dev/null 2>&1
+
+            # Ensure adbd is running
             if [ "$(getprop init.svc.adbd)" != "running" ]; then
                 start adbd
             fi
+
+            # Force ConfigFS link and bind UDC
             setprop sys.usb.ffs.ready 1
             [ -e /config/usb_gadget/g1/configs/b.1/f1 ] || \
                 ln -s /config/usb_gadget/g1/functions/ffs.adb /config/usb_gadget/g1/configs/b.1/f1 2>/dev/null
-            echo $C > /config/usb_gadget/g1/UDC 2>/dev/null || true
+            echo $CTRL > /config/usb_gadget/g1/UDC 2>/dev/null || true
             setprop sys.usb.state adb
             setprop sys.usb.config adb
         fi
 
-        sleep 2
+        PREV_ONLINE="$CUR_ONLINE"
+        sleep 1
     done
 ) &
 
